@@ -1,3 +1,4 @@
+local QBCore = exports['qb-core']:GetCoreObject()
 local oxmysql = exports['oxmysql']
 
 -- Ruta relativa a la carpeta DEV
@@ -27,18 +28,18 @@ end
 
 RegisterNetEvent("tienda:crearNuevaTienda", function(shopName, slots, coords, items)
     local src = source
-    print("[DEBUG] Recibido crearNuevaTienda:", shopName, slots, coords and coords.x, coords and coords.y, coords and coords.z)
-    oxmysql:execute('INSERT INTO tiendas (name, coords_x, coords_y, coords_z, slots, items) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE coords_x=VALUES(coords_x), coords_y=VALUES(coords_y), coords_z=VALUES(coords_z), slots=VALUES(slots), items=VALUES(items)', {
-        shopName, coords.x, coords.y, coords.z, slots, json.encode(items or {})
+    local xPlayer = QBCore.Functions.GetPlayer(src)
+    local identifier = xPlayer.PlayerData.citizenid
+
+    oxmysql:execute('INSERT INTO tiendas (name, coords_x, coords_y, coords_z, slots, items, owner) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE coords_x=VALUES(coords_x), coords_y=VALUES(coords_y), coords_z=VALUES(coords_z), slots=VALUES(slots), items=VALUES(items), owner=VALUES(owner)', {
+        shopName, coords.x, coords.y, coords.z, slots, json.encode(items or {}), identifier
     }, function(result)
-        print("[DEBUG] Resultado del insert tienda:", json.encode(result))
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Tienda creada',
             description = 'La tienda fue creada correctamente.',
             type = 'success'
         })
         cargarYEnviarTiendas()
-        guardarTiendasEnConfig()
     end)
 end)
 
@@ -78,6 +79,10 @@ RegisterNetEvent("tienda:comprarItem", function(shopName, itemName, cantidad)
 
     exports.ox_inventory:AddItem(src, itemName, cantidad)
 
+    local precio = 100 -- pon aquí tu lógica de precio real
+    local total = precio * cantidad
+    exports.oxmysql:execute('UPDATE tiendas SET balance = balance + ? WHERE name = ?', {total, shopName})
+
     TriggerClientEvent('ox_lib:notify', src, {
         title = 'Compra',
         description = ('Compraste %sx %s en %s'):format(cantidad, itemName, shopName),
@@ -99,7 +104,9 @@ RegisterNetEvent("tienda:solicitarTiendasGestion", function()
                 name = row.name,
                 coords = { x = row.coords_x, y = row.coords_y, z = row.coords_z },
                 slots = row.slots,
-                items = json.decode(row.items or '{}')
+                items = json.decode(row.items or '{}'),
+                balance = row.balance or 0,
+                owner = row.owner or nil
             })
         end
         TriggerClientEvent("tienda:abrirMenuGestionTiendas", src, tiendas)
@@ -130,7 +137,9 @@ function cargarYEnviarTiendas(target)
                     name = row.name,
                     coords = { x = row.coords_x, y = row.coords_y, z = row.coords_z },
                     slots = row.slots,
-                    items = json.decode(row.items or '{}')
+                    items = json.decode(row.items or '{}'),
+                    balance = row.balance or 0,
+                    owner = row.owner or nil
                 })
             end
         else

@@ -4,6 +4,7 @@ local tiendaTextUIActive = false
 local tiendaTextUIZone = nil
 local lastTiendaCercana = nil
 local puedeAbrirTienda = false
+local shopBlips = {}
 
 RegisterCommand("creartienda", function()
     if creandoTienda then return end
@@ -74,6 +75,30 @@ end
 RegisterNetEvent("tienda:cargarTiendas", function(tiendas)
     tiendasRegistradas = tiendas
     setupQbTargetShops()
+
+    -- Remove old blips
+    for _, blip in ipairs(shopBlips) do
+        RemoveBlip(blip)
+    end
+    shopBlips = {}
+
+    -- Add new blips for each shop
+    for _, tienda in ipairs(tiendasRegistradas or {}) do
+        local coords = tienda.coords
+        if type(coords) == "table" then
+            coords = vector3(coords.x, coords.y, coords.z)
+        end
+        local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
+        SetBlipSprite(blip, 52) -- 52 = Store icon, change if you want a different icon
+        SetBlipDisplay(blip, 4)
+        SetBlipScale(blip, 0.8)
+        SetBlipColour(blip, 2) -- 2 = Green, change if you want a different color
+        SetBlipAsShortRange(blip, true)
+        BeginTextCommandSetBlipName("STRING")
+        AddTextComponentString(tienda.name or "Tienda")
+        EndTextCommandSetBlipName(blip)
+        table.insert(shopBlips, blip)
+    end
 end)
 
 function DrawText3D(x, y, z, text)
